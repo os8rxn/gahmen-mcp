@@ -23,22 +23,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a **stateless MCP server** that exposes Singapore's data.gov.sg APIs through Model Context Protocol tools. The server follows Smithery's convention requiring a default export function with signature `({ config })`.
 
 ### API Integration Pattern
-The codebase integrates with **5 different API bases**:
-- `api-production.data.gov.sg/v2/public/api` - Collections and Datasets APIs
-- `data.gov.sg/api/action` - CKAN Datastore Search API  
+The codebase integrates with **4 different API bases**:
+- `api-open.data.gov.sg/v2/public/api` - Collections and Datasets APIs
+- `api-open.data.gov.sg/api/action` - CKAN Datastore Search API
 - `api-open.data.gov.sg/v1/public/api` - Download APIs
 - `tablebuilder.singstat.gov.sg/api/table` - SingStat Table Builder APIs
 
 ### Rate Limiting Architecture
-Built-in rate limiter implements **5 requests per minute** (12-second intervals) as required by data.gov.sg APIs. All MCP tools automatically apply rate limiting before API calls.
+`src/rateLimiter.ts` is a sliding-window limiter with a **default budget of 5 requests per 10 seconds per provider** (one instance for data.gov.sg, one for SingStat). This is a conservative default, not a limit published by data.gov.sg; the API's 429 message asks clients to "try again in 10 seconds". Every tool awaits `rateLimiter.waitIfNeeded()` before its `axios` call, so a burst waits at most 10 s for a slot.
 
-### HTTP Logging
-Global axios interceptors provide comprehensive request/response logging with emojis for easy debugging. All API calls are automatically logged with parameters, responses, and errors.
+### HTTP Interceptors
+`src/http.ts` installs one global axios response interceptor (`installRetryOn429()`, called once from `src/index.ts`): on HTTP 429 it waits for the delay the API asks for (`Retry-After` header, else the "try again in N seconds" message, else 10 s, capped at 30 s) and retries the request a single time.
 
 ### Multi-Provider Architecture
 The codebase supports both **data.gov.sg APIs** and **SingStat Table Builder APIs**. Tools are organized by provider in separate files:
 - `src/datagovsg.tools.ts` - Data.gov.sg API tools with `datagovsg_` prefix
 - `src/singstat.tools.ts` - SingStat API tools with `singstat_` prefix
+- `src/rateLimiter.ts` - Shared sliding-window rate limiter (one instance per provider)
+- `src/http.ts` - Global axios interceptor: a single retry on HTTP 429
 - `src/index.ts` - Main server that imports and registers all tools
 
 ### Tool Categories
@@ -55,6 +57,7 @@ All tools return JSON-stringified responses in MCP text content format. Error ha
 
 **Data.gov.sg APIs:**
 - No authentication required (public APIs)
+- Use the `api-open.data.gov.sg` host. `api-production.data.gov.sg` and `data.gov.sg/api/action` are behind a Cloudflare browser challenge and return HTTP 403 to non-browser clients
 - API responses use `code: 0` for success (not `code: 1`)
 - Dataset IDs start with `d_` prefix
 - Collection IDs are numeric strings
@@ -76,7 +79,7 @@ All tools return JSON-stringified responses in MCP text content format. Error ha
 - Requires `package.json` `module` field pointing to source TypeScript
 
 ### Rate Limiting Compliance
-Always respect the 5 requests/minute limit when adding new tools or modifying existing ones. The `rateLimiter.waitIfNeeded()` call is mandatory before any API request.
+Every new upstream call must be preceded by `await rateLimiter.waitIfNeeded()` using the limiter for that provider, so the shared budget stays accurate.
 
 ### API Response Validation
 Different APIs have different success indicators:
