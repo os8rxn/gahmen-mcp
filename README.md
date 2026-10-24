@@ -39,6 +39,22 @@ MCP (Model Context Protocol) server for Singapore's [data.gov.sg](https://data.g
 npm install
 ```
 
+## Run locally (stdio)
+
+```bash
+npm install
+npm run build
+npm start          # runs node dist/stdio.js
+```
+
+To use it from Claude Code:
+
+```bash
+claude mcp add --scope user gahmen -- node /absolute/path/to/gahmen-mcp/dist/stdio.js
+```
+
+Claude Desktop: add the same `node … dist/stdio.js` command under `mcpServers` in its config.
+
 ## Development
 
 ```bash
