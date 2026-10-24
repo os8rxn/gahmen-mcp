@@ -7,6 +7,7 @@ MCP (Model Context Protocol) server for Singapore's [data.gov.sg](https://data.g
 - Access to data.gov.sg collections and datasets
 - Search within datasets using the CKAN datastore API
 - Dataset download functionality with filtering support
+- Real-time NEA weather, air quality (PSI / PM2.5), UV and hazard alerts
 - Search, metadata and data retrieval for SingStat Table Builder tables
 - Built-in request pacing and automatic retry on HTTP 429
 
@@ -25,13 +26,23 @@ MCP (Model Context Protocol) server for Singapore's [data.gov.sg](https://data.g
 - `datagovsg_initiate_download` - Start downloading a dataset with optional filtering
 - `datagovsg_poll_download` - Check download status and get the download URL
 
+### data.gov.sg — Real-time (NEA weather & air quality)
+
+- `datagovsg_realtime_air_quality` - 24-hour PSI (with sub-indices) and 1-hour PM2.5 by region, optional region filter
+- `datagovsg_realtime_weather_forecast` - 2-hour forecast by area, 24-hour forecast by region, or 4-day outlook
+- `datagovsg_realtime_weather_readings` - Rainfall, air temperature, relative humidity, wind direction/speed per station, optional station filter
+- `datagovsg_realtime_uv` - Hourly UV index
+- `datagovsg_realtime_alerts` - Lightning observations, WBGT heat stress, PUB flood alerts
+
+All real-time tools take an optional `date` (`YYYY-MM-DD` or ISO datetime, Singapore time) to fetch past readings.
+
 ### SingStat Table Builder
 
 - `singstat_search_resources` - Search for SingStat tables by keyword (works best with single words)
 - `singstat_get_metadata` - Get metadata for a specific SingStat table
 - `singstat_get_table_data` - Get data from a SingStat table with optional filtering
 
-> Not covered: data.gov.sg's real-time APIs (weather, PSI, PM2.5, UV, flood alerts, taxi/carpark availability, traffic images, NLB). Those are served from `api-open.data.gov.sg/v2/real-time/api/...` and are not exposed by this server yet.
+> Not covered yet: the remaining data.gov.sg real-time APIs (taxi availability, carpark availability, traffic images, NLB). They are served from the same `api-open.data.gov.sg/v2/real-time/api/...` host and can be added to `src/realtime.tools.ts`.
 
 ## Installation
 
@@ -91,6 +102,19 @@ datagovsg_get_collection({
 })
 ```
 
+### Air Quality in One Region
+
+```javascript
+// Latest PSI and 1-hour PM2.5 for the south region
+datagovsg_realtime_air_quality({ region: "south" })
+```
+
+### Two-hour Forecast for an Area
+
+```javascript
+datagovsg_realtime_weather_forecast({ horizon: "two-hour", area: "Bedok" })
+```
+
 ### Get SingStat Table Data
 
 ```javascript
@@ -108,6 +132,7 @@ singstat_get_table_data({
 | Collections / datasets metadata | `https://api-open.data.gov.sg/v2/public/api` |
 | CKAN datastore search | `https://api-open.data.gov.sg/api/action` |
 | Downloads | `https://api-open.data.gov.sg/v1/public/api` |
+| Real-time (NEA weather, PSI, UV, alerts) | `https://api-open.data.gov.sg/v2/real-time/api` |
 | SingStat | `https://tablebuilder.singstat.gov.sg/api/table` |
 
 The older `api-production.data.gov.sg` and `data.gov.sg/api/action` hosts now sit behind a browser challenge and return HTTP 403 to API clients, so this server uses `api-open.data.gov.sg` for everything.

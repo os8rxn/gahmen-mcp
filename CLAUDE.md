@@ -23,10 +23,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a **stateless MCP server** that exposes Singapore's data.gov.sg APIs through Model Context Protocol tools. The server follows Smithery's convention requiring a default export function with signature `({ config })`.
 
 ### API Integration Pattern
-The codebase integrates with **4 different API bases**:
+The codebase integrates with **5 different API bases**:
 - `api-open.data.gov.sg/v2/public/api` - Collections and Datasets APIs
 - `api-open.data.gov.sg/api/action` - CKAN Datastore Search API
 - `api-open.data.gov.sg/v1/public/api` - Download APIs
+- `api-open.data.gov.sg/v2/real-time/api` - Real-time APIs (NEA weather, PSI/PM2.5, UV, lightning, WBGT, flood alerts)
 - `tablebuilder.singstat.gov.sg/api/table` - SingStat Table Builder APIs
 
 ### Rate Limiting Architecture
@@ -38,6 +39,7 @@ The codebase integrates with **4 different API bases**:
 ### Multi-Provider Architecture
 The codebase supports both **data.gov.sg APIs** and **SingStat Table Builder APIs**. Tools are organized by provider in separate files:
 - `src/datagovsg.tools.ts` - Data.gov.sg API tools with `datagovsg_` prefix
+- `src/realtime.tools.ts` - Data.gov.sg real-time API tools with `datagovsg_realtime_` prefix (share the data.gov.sg rate limiter)
 - `src/singstat.tools.ts` - SingStat API tools with `singstat_` prefix
 - `src/rateLimiter.ts` - Shared sliding-window rate limiter (one instance per provider)
 - `src/http.ts` - Global axios interceptor: a single retry on HTTP 429
@@ -48,6 +50,7 @@ The codebase supports both **data.gov.sg APIs** and **SingStat Table Builder API
 - **Data.gov.sg Datasets**: `datagovsg_list_datasets`, `datagovsg_get_dataset_metadata` 
 - **Data.gov.sg CKAN Search**: `datagovsg_search_dataset` (main data querying tool)
 - **Data.gov.sg Downloads**: `datagovsg_initiate_download`, `datagovsg_poll_download`
+- **Data.gov.sg Real-time**: `datagovsg_realtime_air_quality` (PSI + PM2.5, region filter), `datagovsg_realtime_weather_forecast` (2-hour / 24-hour / 4-day), `datagovsg_realtime_weather_readings` (rainfall, temperature, humidity, wind per station), `datagovsg_realtime_uv`, `datagovsg_realtime_alerts` (lightning, WBGT, flood alerts)
 - **SingStat**: `singstat_search_resources`, `singstat_get_metadata`, `singstat_get_table_data`
 
 ### Response Format Consistency
@@ -86,3 +89,4 @@ Different APIs have different success indicators:
 - Collections/Datasets APIs: Check for `data.data` presence
 - CKAN Datastore: Check for `data.success && data.result`
 - Download APIs: Check for `data.data` presence
+- Real-time APIs: Check for `code === 0` and `data.data` presence; rate-limit rejections come back as `code: 24, name: TOO_MANY_REQUESTS` with HTTP 429. Regional readings are `data.items[].readings.<metric>.<region>`; station readings are `data.stations[]` + `data.readings[].data[]`; the `weather?api=` multiplexer and UV use `data.records[]`
